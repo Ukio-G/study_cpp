@@ -5,6 +5,7 @@
 #include <map>
 #include <stddef.h>
 #include <memory>
+#include <utility>
 
 // базовый класс фигуры (полиморфный)
 struct Shape { 
@@ -37,101 +38,114 @@ bool is_intersect_r_t(Shape * a, Shape * b)
 	return false;
 }
 
-// Base - базовый класс иерархии
-// Result - тип возвращаемого значения мультиметода
-// Commutative - флаг, который показывает, что
-// мультиметод коммутативный (т.е. f(x,y) = f(y,x)).
+bool is_intersect_t_r(Shape * a, Shape * b)
+{
+    std::cout << "is_intersect_t_r" << std::endl;
+    return false;
+}
+
+bool is_intersect_t_t(Shape * a, Shape * b)
+{
+    std::cout << "is_intersect_t_t" << std::endl;
+    return false;
+}
+
 template<class Base, class Result, bool Commutative>
 struct Multimethod2
 {
+	std::map<std::pair<std::type_index,std::type_index>,std::function<Result(Base *, Base *)>> implementation;
 
-    // устанавливает реализацию мультиметода
-    // для типов t1 и t2 заданных через typeid 
-    // f - это функция или функциональный объект
-    // принимающий два указателя на Base 
-    // и возвращающий значение типа Result
-
-	std::map<size_t,std::function<Result(Base *, Base *)>> implementation;
-
-    void addImpl(const std::type_info & t1, const std::type_info & t2, std::function<Result(Base *, Base *)> f)
+    void addImpl(const std::type_index & t1, const std::type_index & t2, std::function<Result(Base *, Base *)> f)
     {
-    	size_t hash = t1.hash_code() ^ t2.hash_code();
-    	implementation[hash] = f;
-
-    	std::cout << "add implementation h1 = " << t1.hash_code() << ";h2 = " << t2.hash_code() << "; thier hash is "  << hash << std::endl;
+       std::pair<std::type_index,std::type_index> pair(t1,t2);
+   	   implementation[pair] = f;
     }
 
-    // проверяет, есть ли реализация мультиметода
-    // для типов объектов a и b
     bool hasImpl(Base * a, Base * b) const
     {
-        // возвращает true, если реализация есть
-        // если операция коммутативная, то нужно 
-        // проверить есть ли реализация для b и а 
-		size_t h1 = typeid(*a).hash_code();
-        size_t h2 = typeid(*b).hash_code();
-    	size_t hash = h1 ^ h2;
+		std::type_index t1 = typeid(*a);
+        std::type_index t2 = typeid(*b);
 
-    	std::cout << "implementation h1 = " << h1 << ";h2 = " << h2 << " is "  << (implementation.find(hash) != implementation.end()) << std::endl;
+        if(Commutative)
+        {
+            std::pair<std::type_index,std::type_index> first_case_pair(t1,t2);
+            std::pair<std::type_index,std::type_index> second_case_pair(t2,t1);
 
-        return (implementation.find(hash) != implementation.end()); 
+            if (implementation.find(first_case_pair) != implementation.end() || 
+                implementation.find(second_case_pair) != implementation.end())
+                return true;
+            return false;
+        }
+        else
+        {
+            std::pair<std::type_index,std::type_index> first_case_pair(t1,t2);
+            if (implementation.find(first_case_pair) != implementation.end())
+                return true;
+            return false;
+        }
     }
 
-    // Применяет мультиметод к объектам
-    // по указателям a и b
     Result call(Base * a, Base * b) const
     {
-        // возвращает результат применения реализации
-        // мультиметода к a и b
-        size_t h1 = typeid(*a).hash_code();
-        size_t h2 = typeid(*b).hash_code();
-    	size_t hash = h1 ^ h2;
 
-    	if (hasImpl(a,b))
-        	return implementation.at(hash)(a,b);
+        std::type_index t1 = typeid(*a);
+        std::type_index t2 = typeid(*b);
+
+         if(Commutative)
+        {
+            std::pair<std::type_index,std::type_index> first_case_pair(t1,t2);
+            std::pair<std::type_index,std::type_index> second_case_pair(t2,t1);
+
+            if (implementation.find(first_case_pair) != implementation.end())
+                return implementation.at(first_case_pair)(a, b);
+            if (implementation.find(second_case_pair) != implementation.end())
+                return implementation.at(second_case_pair)(b, a);
+        }
         else
-        	return false;
+        {
+            std::pair<std::type_index,std::type_index> first_case_pair(t1,t2);
+            if (implementation.find(first_case_pair) != implementation.end())
+                return implementation.at(first_case_pair)(a, b);
+        }
     }
-
-
 };
 
     
-
 int main() 
 {
-    // мультиметод для наследников Shape
-    // возращающий bool и являющийся коммутативным 
-    Multimethod2<Shape, bool, true> is_intersect;
+    Multimethod2<Shape, bool, true> is_intersect_comm;
 
-    // добавляем реализацию мультиметода для двух прямоугольников
-    is_intersect.addImpl(typeid(Rectangle), typeid(Rectangle), is_intersect_r_r);
-
-    // добавляем реализацию мультиметода для прямоугольника и треугольника
-    is_intersect.addImpl(typeid(Rectangle), typeid(Triangle), is_intersect_r_t);
-
-    // создаём две фигуры    
+    is_intersect_comm.addImpl(typeid(Rectangle), typeid(Rectangle), is_intersect_r_r);
+    is_intersect_comm.addImpl(typeid(Rectangle), typeid(Triangle), is_intersect_r_t);
+    is_intersect_comm.addImpl(typeid(Triangle), typeid(Triangle), is_intersect_t_t);
    
-    Shape * s1 = new Triangle();
-    Shape * s2 = new Rectangle();
+    Shape * t = new Triangle();
+    Shape * r = new Rectangle();
 
-    // проверяем, что реализация для s1 и s2 есть
-    if (is_intersect.hasImpl(s1, s2))
-    {
-         // вызывается функция is_intersect_r_t(s2, s1)
-         bool res = is_intersect.call(s1, s2);
-         std::cout << res << std::endl;
+    std::cout << is_intersect_comm.hasImpl(t, r) << std::endl;
+    std::cout << is_intersect_comm.hasImpl(t, r) << std::endl;
+    std::cout << is_intersect_comm.hasImpl(t, t) << std::endl;
 
-         res = is_intersect.call(s2,s1);
-         std::cout << res << std::endl;
+    Multimethod2<Shape, bool, false> is_intersect_non_comm;
+    is_intersect_non_comm.addImpl(typeid(Rectangle), typeid(Rectangle), is_intersect_r_r);
+    is_intersect_non_comm.addImpl(typeid(Rectangle), typeid(Triangle), is_intersect_r_t);
+    is_intersect_non_comm.addImpl(typeid(Triangle), typeid(Rectangle), is_intersect_t_r);
+    is_intersect_non_comm.addImpl(typeid(Triangle), typeid(Triangle), is_intersect_t_t);
 
-         res = is_intersect.call(s2,s2);
-         std::cout << res << std::endl;
-         // Замечание: is_intersect_r_t ожидает,
-         // что первым аргументом будет прямоугольник
-         // а вторым треугольник, а здесь аргументы
-         // передаются в обратном порядке. 
-         // ваша реализация должна самостоятельно 
-         // об этом позаботиться
-    }
+    std::cout << is_intersect_non_comm.hasImpl(r, r) << std::endl;
+    std::cout << is_intersect_non_comm.hasImpl(t, r) << std::endl;
+    std::cout << is_intersect_non_comm.hasImpl(r, t) << std::endl;
+    std::cout << is_intersect_non_comm.hasImpl(t, t) << std::endl;
+
+    is_intersect_comm.call(t, r);
+    is_intersect_comm.call(r, t);
+    is_intersect_comm.call(r, r);
+    is_intersect_comm.call(t, t);
+
+    is_intersect_non_comm.call(t, r);
+    is_intersect_non_comm.call(r, t);
+    is_intersect_non_comm.call(r, r);
+    is_intersect_non_comm.call(t, t);
+
 }
+
