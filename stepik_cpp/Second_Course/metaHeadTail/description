@@ -1,0 +1,20 @@
+По аналогии со списком типов определите список целых чисел (int) времени компиляции IntList.
+
+Внутри списка должна быть константа Head, соответствующая числу в голове списка, и имя типа Tail, соответствующее хвосту списка.
+
+Пример:
+
+using primes = IntList<2,3,5,7,11,13>;
+
+constexpr int head = primes::Head;
+
+using odd_primes = primes::Tail;
+
+
+Напишите метафункцию Length для вычисления длины списка IntList.
+
+Пример:
+
+using primes = IntList<2,3,5,7,11,13>;
+
+constexpr size_t len = Length<primes>::value; // 6
