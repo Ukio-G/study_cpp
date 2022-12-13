@@ -1,30 +1,36 @@
 #include "Shader.h"
 
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdlib.h>
+
 void Shader::loadFromFile(const char *path, GLuint shaderType) {
-    std::ifstream src(path, std::ifstream::binary);
-    if(src){
-        src.seekg (0, src.end);
-        int length = src.tellg();
-        src.seekg (0, src.beg);
+    shaderSource = new char[2048];
 
-        shaderSource = new char [length];
-        src.read (shaderSource ,length);
-        src.close();
+    int fd = open(path, O_RDONLY);
 
-        shaderID = glCreateShader(shaderType);
-        glShaderSource(shaderID, 1, &shaderSource, NULL);
-        glCompileShader(shaderID);
+    if (!fd)
+        std::runtime_error("Error with open file: " + std::string(path));
 
-        // Compilation log on error
-        int  success;
-        char infoLog[512];
-        glGetShaderiv(shaderID, GL_COMPILE_STATUS, &success);
-        if(!success) {
-            glGetShaderInfoLog(shaderID, 512, NULL, infoLog);
-            std::cout << "Shader compilation failed! Shader type: " 
-            << ((shaderType == GL_VERTEX_SHADER) ? "Vertex" : "Fragment") << "\n"  << infoLog << std::endl;
-        }
+    int readed = read(fd, shaderSource, 2048);
+    shaderSource[readed] = 0;
+
+    close(fd);
+
+    shaderID = glCreateShader(shaderType);
+    glShaderSource(shaderID, 1, &shaderSource, NULL);
+    glCompileShader(shaderID);
+
+    // Compilation log on error
+    int  success;
+    char infoLog[512];
+    glGetShaderiv(shaderID, GL_COMPILE_STATUS, &success);
+    if(!success) {
+        glGetShaderInfoLog(shaderID, 512, NULL, infoLog);
+        std::cout << "Shader compilation failed! Shader type: " 
+        << ((shaderType == GL_VERTEX_SHADER) ? "Vertex" : "Fragment") << "\n"  << infoLog << std::endl;
     }
+    
 }
 
 ShaderProgram::ShaderProgram(Shader *vertex, Shader *fragment) {

@@ -14,6 +14,11 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
 // Function prototypes
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mode);
 
@@ -148,6 +153,7 @@ int main()
     auto texture2 = initTexture("texture2.png");
 
     shaderProgram.use();
+    glEnable(GL_DEPTH_TEST);
 
     // Game loop
     while (!glfwWindowShouldClose(window))
@@ -158,7 +164,7 @@ int main()
         // Render
         // Clear the colorbuffer
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         
         glActiveTexture(GL_TEXTURE0);
@@ -171,8 +177,16 @@ int main()
 
         shaderProgram.setInt("texture1", 0);
         shaderProgram.setInt("texture2", 1);
+        
+        glm::mat4 trans = glm::mat4(1.0f);
+        
+        trans = glm::rotate(trans, glm::radians(90.0f), glm::vec3(0.0, 0.0, 1.0));
+        trans = glm::scale(trans, glm::vec3(1, 1, 1));
 
-        glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, 0);
+        unsigned int transformLoc = glGetUniformLocation(shaderProgram.shaderProgram,"transform");
+        glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(trans));
+
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
         // Swap the screen buffers
         glfwSwapBuffers(window);
