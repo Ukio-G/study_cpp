@@ -19,11 +19,19 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#include "imgui/imgui_impl_opengl3.h"
+#include "imgui/imgui_impl_glfw.h"
+#include "imgui/imgui.h"
+
+#include "menu/menu.hpp"
+
 // Function prototypes
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mode);
 
 // Window dimensions
 const GLuint WIDTH = 800, HEIGHT = 600;
+
+const char* glsl_version = "#version 150";
 
 
 uint initTexture(const std::string &path) {
@@ -93,6 +101,28 @@ uint initVAO() {
     return VAO;
 }
 
+
+glm::mat4 myOwnProjectionMatrix(double near, double far, double fovy, double aspect_ratio) {
+    fovy = fovy / 2.0;
+    double tg = tan(fovy);
+    
+    double top_bottom = (tg * near);
+    double right_left = (tg * near * aspect_ratio);
+    
+    glm::mat4 result = glm::mat4(0.0);
+
+    result[0][0] = (double)(near / right_left);
+    result[1][1] = (double)(near / top_bottom);
+
+    result[2][2] = (double)(-1.0 * ((far + near) / (double)(far - near)));
+    result[3][2] = (double)(-1.0 * near  * 2.0 * far) / (double)(far - near);
+    
+    result[2][3] = -1;
+
+    return result;
+}
+
+
 // The MAIN function, from here we start the application and run the game loop
 int main()
 {
@@ -137,6 +167,21 @@ int main()
         return -1;
     }    
 
+    // Setup Dear ImGui context
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+
+    // Setup Dear ImGui style
+    ImGui::StyleColorsDark();
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init(glsl_version);
+    ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+    bool show_demo_window = true;
+
+
     // Define the viewport dimensions
     int width, height;
     glfwGetFramebufferSize(window, &width, &height);  
@@ -155,18 +200,64 @@ int main()
     shaderProgram.use();
     glEnable(GL_DEPTH_TEST);
 
+    glm::fvec3 rotateVec(0.0f, 0.0f, 0.0f);
+    glm::fvec3 translateVec(0.0f, 0.0f, 0.0f);
+    float vertex_w = 1.0f;
     // Game loop
+    bool useProjectionGLM = false;
+    bool useProjectionMyOwn = false;
+    bool always_fixed_w = false;
     while (!glfwWindowShouldClose(window))
     {
         // Check if any events have been activiated (key pressed, mouse moved etc.) and call corresponding response functions
         glfwPollEvents();
 
+        // Start the Dear ImGui frame
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        /*
+        if (show_demo_window)
+            ImGui::ShowDemoWindow(&show_demo_window);
+        */
+        translationWindow(translateVec);
+        rotationWindow(rotateVec);
+        vertexW_Window(vertex_w);
+        projectionUsage(useProjectionGLM, useProjectionMyOwn, always_fixed_w);
+
+
+        glm::mat4 rotationMatrix = glm::mat4(1.0f);
+        glm::mat4 translateMatrix = glm::mat4(1.0f);
+
+        glm::mat4 projectionMatrix = glm::mat4(1.0f);
+        if (useProjectionGLM) {
+            projectionMatrix = glm::perspective(45.0f, (float)width/(float)height, 0.001f, 100.0f);
+        } else if (useProjectionMyOwn) { 
+            projectionMatrix = myOwnProjectionMatrix(0.001, 100.0, 45., (double)width/(double)height);
+        }
+
+        rotationMatrix = glm::rotate(rotationMatrix, glm::radians(rotateVec[0]), glm::vec3(1.0, 0.0, 0.0));
+        rotationMatrix = glm::rotate(rotationMatrix, glm::radians(rotateVec[1]), glm::vec3(0.0, 1.0, 0.0));
+        rotationMatrix = glm::rotate(rotationMatrix, glm::radians(rotateVec[2]), glm::vec3(0.0, 0.0, 1.0));
+
+        translateMatrix = glm::translate(translateMatrix, translateVec);
+
+        glm::mat4 modelMatrix = translateMatrix * rotationMatrix;
+
+        showMatrix(modelMatrix, "Model matrix");
+        showMatrix(projectionMatrix, "GLM Projection matrix");
+
+        vertexMatrixCalculation((Vertex*)triangle_vertices, modelMatrix, projectionMatrix, vertex_w);
+
         // Render
         // Clear the colorbuffer
+
+        ImGui::Render();
+
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture1);
         glActiveTexture(GL_TEXTURE1);
@@ -177,16 +268,17 @@ int main()
 
         shaderProgram.setInt("texture1", 0);
         shaderProgram.setInt("texture2", 1);
-        
-        glm::mat4 trans = glm::mat4(1.0f);
-        
-        trans = glm::rotate(trans, glm::radians(90.0f), glm::vec3(0.0, 0.0, 1.0));
-        trans = glm::scale(trans, glm::vec3(1, 1, 1));
+        shaderProgram.setFloat("vertex_w", vertex_w);
+        shaderProgram.setBool("always_fixed_w", always_fixed_w);
 
-        unsigned int transformLoc = glGetUniformLocation(shaderProgram.shaderProgram,"transform");
-        glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(trans));
+        shaderProgram.setMatrix4d("transform", modelMatrix);
+        shaderProgram.setMatrix4d("projection", projectionMatrix);
 
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        
+
+        glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, 0);
+
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         // Swap the screen buffers
         glfwSwapBuffers(window);

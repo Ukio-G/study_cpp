@@ -21,7 +21,15 @@ include_directories(${GLEW_INCLUDE_DIRS})
 
 include_directories(. include)
 
-add_executable(opengl-sample Shader.cpp main.cpp)
+add_executable(opengl-sample Shader.cpp main.cpp 
+        imgui/imgui_impl_glfw.cpp 
+        imgui/imgui_impl_opengl3.cpp 
+        imgui/imgui.cpp 
+        imgui/imgui_tables.cpp
+        imgui/imgui_widgets.cpp
+        imgui/imgui_draw.cpp
+        menu/menu.cpp
+        )
 
 target_link_libraries(
         ${APP_TARGET}

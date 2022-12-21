@@ -4,6 +4,9 @@
 #include <iostream>
 #include <fstream>
 #include <GL/glew.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 class Shader {
 public:
@@ -35,6 +38,8 @@ public:
     void setInt(const std::string &name, int value) const;   
     void setFloat(const std::string &name, float value) const;
     void setFloat4d(const std::string &name, const float (&value) [4]) const;
+    void setMatrix4d(const std::string &name, const glm::mat4 & mat) const;
+
 };
 
 
